@@ -23,6 +23,18 @@
             </ContextMapFilter>
             <PatternLayout pattern="${simple-pattern}"/>
         </Console>
+        <File name="MyFile" fileName="logs/airbyte_simple.log">
+            <ContextMapFilter onMatch="ACCEPT" onMismatch="DENY">
+                <KeyValuePair key="simple" value="true"/>
+            </ContextMapFilter>
+            <PatternLayout pattern="${simple-pattern}"/>
+        </File>
+        <File name="MyFile" fileName="logs/airbyte_default.log">
+            <ContextMapFilter onMatch="ACCEPT" onMismatch="DENY">
+                <KeyValuePair key="simple" value="true"/>
+            </ContextMapFilter>
+            <PatternLayout pattern="${default-pattern}"/>
+        </File>
     </Appenders>
 
     <Loggers>
