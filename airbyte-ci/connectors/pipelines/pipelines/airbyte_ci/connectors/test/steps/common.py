@@ -17,11 +17,12 @@ from connector_ops.utils import Connector  # type: ignore
 from dagger import Container, Directory
 from pipelines import hacks
 from pipelines.airbyte_ci.connectors.context import ConnectorContext
-from pipelines.consts import CIContext
+from pipelines.airbyte_ci.steps.docker import SimpleDockerStep
+from pipelines.consts import INTERNAL_TOOL_PATHS, CIContext
 from pipelines.dagger.actions import secrets
 from pipelines.dagger.containers import internal_tools
 from pipelines.helpers.utils import METADATA_FILE_NAME
-from pipelines.models.steps import STEP_PARAMS, Step, StepResult, StepStatus
+from pipelines.models.steps import STEP_PARAMS, MountPath, Step, StepResult, StepStatus
 
 
 class VersionCheck(Step, ABC):
@@ -119,70 +120,36 @@ class VersionIncrementCheck(VersionCheck):
         return self.success_result
 
 
-class VersionFollowsSemverCheck(VersionCheck):
-    context: ConnectorContext
-    title = "Connector version semver check"
+class QaChecks(SimpleDockerStep):
+    """A step to run QA checks for a connectors.
+    More details in https://github.com/airbytehq/airbyte/blob/main/airbyte-ci/connectors/connectors_qa/README.md
+    """
 
-    @property
-    def failure_message(self) -> str:
-        return f"The dockerImageTag in {METADATA_FILE_NAME} is not following semantic versioning or was decremented. Master version is {self.master_connector_version}, current version is {self.current_connector_version}"
-
-    def validate(self) -> StepResult:
-        try:
-            if not self.current_connector_version >= self.master_connector_version:
-                return self.failure_result
-        except ValueError:
-            return self.failure_result
-        return self.success_result
-
-
-class QaChecks(Step):
-    """A step to run QA checks for a connector."""
-
-    context: ConnectorContext
-    title = "QA checks"
-
-    async def _run(self) -> StepResult:
-        """Run QA checks on a connector.
-
-        The QA checks are defined in this module:
-        https://github.com/airbytehq/airbyte/blob/master/airbyte-ci/connector_ops/connector_ops/qa_checks.py
-
-        Args:
-            context (ConnectorContext): The current test context, providing a connector object, a dagger client and a repository directory.
-        Returns:
-            StepResult: Failure or success of the QA checks with stdout and stderr.
-        """
-        connector_ops = await internal_tools.with_connector_ops(self.context)
-        include = [
-            str(self.context.connector.code_directory),
-            str(self.context.connector.documentation_file_path),
-            str(self.context.connector.migration_guide_file_path),
-            str(self.context.connector.icon_path),
-        ]
-        if (
-            self.context.connector.technical_name.endswith("strict-encrypt")
-            or self.context.connector.technical_name == "source-file-secure"
-        ):
-            original_connector = Connector(self.context.connector.technical_name.replace("-strict-encrypt", "").replace("-secure", ""))
-            include += [
-                str(original_connector.code_directory),
-                str(original_connector.documentation_file_path),
-                str(original_connector.icon_path),
-                str(original_connector.migration_guide_file_path),
-            ]
-
-        filtered_repo = self.context.get_repo_dir(
-            include=include,
+    def __init__(self, context: ConnectorContext) -> None:
+        super().__init__(
+            title=f"Run QA checks for {context.connector.technical_name}",
+            context=context,
+            paths_to_mount=[
+                MountPath(context.connector.code_directory),
+                # These paths are optional
+                # But their absence might make the QA check fail
+                MountPath(context.connector.documentation_file_path, optional=True),
+                MountPath(context.connector.migration_guide_file_path, optional=True),
+                MountPath(context.connector.icon_path, optional=True),
+            ],
+            internal_tools=[
+                MountPath(INTERNAL_TOOL_PATHS.CONNECTORS_QA.value),
+            ],
+            secrets={
+                k: v
+                for k, v in {
+                    "DOCKER_HUB_USERNAME": context.docker_hub_username_secret,
+                    "DOCKER_HUB_PASSWORD": context.docker_hub_password_secret,
+                }.items()
+                if v
+            },
+            command=["connectors-qa", "run", f"--name={context.connector.technical_name}"],
         )
-
-        qa_checks = (
-            connector_ops.with_mounted_directory("/airbyte", filtered_repo)
-            .with_workdir("/airbyte")
-            .with_exec(["run-qa-checks", f"connectors/{self.context.connector.technical_name}"])
-        )
-
-        return await self.get_step_result(qa_checks)
 
 
 class AcceptanceTests(Step):

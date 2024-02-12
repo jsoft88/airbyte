@@ -37,3 +37,17 @@ async def with_connector_ops(context: PipelineContext) -> Container:
     python_base_environment: Container = with_python_base(context)
 
     return await with_installed_pipx_package(context, python_base_environment, INTERNAL_TOOL_PATHS.CONNECTOR_OPS.value)
+
+
+async def with_connectors_qa(context: PipelineContext) -> Container:
+    """Installs the connectors_qa package in a Container running Python > 3.10 with git.
+
+    Args:
+        context (PipelineContext): The current test context, providing the repository directory from which the connectors_qa sources will be pulled.
+
+    Returns:
+        Container: A python environment container with connectors_qa installed.
+    """
+    python_base_environment: Container = with_python_base(context)
+
+    return await with_installed_pipx_package(context, python_base_environment, INTERNAL_TOOL_PATHS.CONNECTORS_QA.value)
