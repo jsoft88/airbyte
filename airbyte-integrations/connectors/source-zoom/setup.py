@@ -3,10 +3,11 @@
 #
 
 
+from pathlib import Path
 from setuptools import find_packages, setup
 
 MAIN_REQUIREMENTS = [
-    "airbyte-cdk~=0.11",
+    f"airbyte-cdk @ {(Path.cwd() / 'airbyte-cdk'/ 'python').as_uri()}#egg=airbyte-cdk",
 ]
 
 TEST_REQUIREMENTS = [
