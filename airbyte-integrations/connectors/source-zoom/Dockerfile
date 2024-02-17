@@ -12,6 +12,7 @@ RUN apk --no-cache upgrade \
 
 COPY airbyte-cdk ./airbyte-cdk
 
+COPY airbyte-integrations/connectors/source-zoom/source_zoom/ ./source_zoom
 COPY airbyte-integrations/connectors/source-zoom/setup.py ./
 # install necessary packages to a temporary folder
 RUN pip install --prefix=/install .
@@ -31,8 +32,7 @@ RUN apk --no-cache add bash
 
 # copy payload code only
 COPY airbyte-integrations/connectors/source-zoom/main.py ./
-COPY airbyte-integrations/connectors/source-zoom/source_zoom ./source_zoom
-
+COPY airbyte-integrations/connectors/source-zoom/source_zoom/ ./source_zoom
 
 ENV AIRBYTE_ENTRYPOINT "python /airbyte/integration_code/main.py"
 
